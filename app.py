@@ -5,59 +5,21 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-# 1. Configurare pagină în stil editorial luminos (Datadista)
 st.set_page_config(
     page_title="Cât a costat votul tău în Iași? | Metodologia Datadista",
-    layout="centered",  # Coloană editorială centrată, exact ca într-un articol interactiv
+    layout="centered",
 )
 
-# 2. CSS Personalizat pentru aspectul vizual identic cu Datadista (alb, curat, tipografie de presă)
 st.markdown(
     """
 <style>
-    /* Forțăm tema luminoasă editorială */
-    .stApp {
-        background-color: #FFFFFF;
-        color: #1A1A1A;
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    }
-    h1, h2, h3 {
-        color: #111111 !important;
-        font-weight: 800 !important;
-        letter-spacing: -0.5px;
-    }
-    .kicker {
-        color: #D90429;
-        font-size: 13px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 1.2px;
-        margin-bottom: 4px;
-    }
-    .lead-text {
-        font-size: 18px;
-        line-height: 1.6;
-        color: #333333;
-        margin-bottom: 24px;
-    }
-    .datadista-box {
-        background-color: #F8F9FA;
-        border-top: 3px solid #111111;
-        border-bottom: 1px solid #E0E0E0;
-        padding: 18px 20px;
-        margin: 20px 0;
-    }
-    .stat-num {
-        font-size: 30px;
-        font-weight: 900;
-        color: #111111;
-        line-height: 1.1;
-    }
-    .stat-label {
-        font-size: 13px;
-        color: #666666;
-        margin-top: 4px;
-    }
+    .stApp { background-color: #FFFFFF; color: #1A1A1A; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+    h1, h2, h3 { color: #111111 !important; font-weight: 800 !important; letter-spacing: -0.5px; }
+    .kicker { color: #D90429; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 4px; }
+    .lead-text { font-size: 18px; line-height: 1.6; color: #333333; margin-bottom: 24px; }
+    .datadista-box { background-color: #F8F9FA; border-top: 3px solid #111111; border-bottom: 1px solid #E0E0E0; padding: 18px 20px; margin: 20px 0; }
+    .stat-num { font-size: 30px; font-weight: 900; color: #111111; line-height: 1.1; }
+    .stat-label { font-size: 13px; color: #666666; margin-top: 4px; }
     .highlight-red { color: #D90429; font-weight: 700; }
     .highlight-green { color: #1B9AAA; font-weight: 700; }
 </style>
@@ -65,7 +27,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Date oficiale Circumscripția nr. 24 Iași - Camera Deputaților 2024 (12 mandate)
+# Date oficiale corecte - Circumscripția nr. 24 Iași (12 mandate)
 MANDATE_IASI = {
     "PARTIDUL SOCIAL DEMOCRAT": 3,
     "ALIANȚA PENTRU UNIREA ROMÂNILOR": 3,
@@ -149,34 +111,67 @@ def load_iasi_data():
     raw[c] = pd.to_numeric(raw[c], errors="coerce").fillna(0)
 
   tot_voturi = raw[vote_cols].sum()
-  rows = []
+
+  # Agregăm strict pe partidele oficiale pentru a evita rândurile duplicate
+  partide_agregate = {k: 0 for k in MANDATE_IASI.keys()}
+  voturi_altele = 0
+
   for col in vote_cols:
     v = int(tot_voturi[col])
     if v == 0:
       continue
-    nume = normalize_str(col.replace("-voturi", ""))
-    mandate = 0
-    sigla = nume[:12]
-    for k_p, nr_m in MANDATE_IASI.items():
-      if k_p in nume or nume in k_p:
-        mandate = nr_m
-        sigla = SIGLE[k_p]
-        nume = k_p
+    nume_raw = normalize_str(col.replace("-voturi", ""))
+
+    matched = False
+    for k_p in MANDATE_IASI.keys():
+      if k_p in nume_raw or (
+          k_p.split()[-1] in nume_raw and len(k_p.split()[-1]) > 3
+      ):
+        partide_agregate[k_p] += v
+        matched = True
         break
+    if not matched:
+      # Păstrăm separat partidele care nu au luat mandate (pentru voturi irosite)
+      pass
+
+  rows = []
+  # Adăugăm partidele cu mandate
+  for k_p, nr_m in MANDATE_IASI.items():
+    v = partide_agregate[k_p]
+    sigla = SIGLE[k_p]
+    cost_m = round(v / nr_m) if nr_m > 0 else 0
     rows.append({
-        "Partid": nume,
+        "Partid": k_p,
         "Sigla": sigla,
         "Voturi": v,
-        "Mandate": mandate,
-        "Cost_Mandat": round(v / mandate) if mandate > 0 else np.nan,
+        "Mandate": nr_m,
+        "Cost_Mandat": cost_m,
     })
+
+  # Adăugăm și celelalte partide fără mandate din coloane
+  for col in vote_cols:
+    nume_raw = normalize_str(col.replace("-voturi", ""))
+    is_parlamentar = any(k_p in nume_raw for k_p in MANDATE_IASI.keys())
+    if not is_parlamentar:
+      v = int(tot_voturi[col])
+      if v > 100:  # filtrăm zgomotul minor
+        rows.append({
+            "Partid": nume_raw,
+            "Sigla": (
+                nume_raw.replace("PARTIDUL", "").replace("ALIANTA", "").strip()
+                [:10]
+            ),
+            "Voturi": v,
+            "Mandate": 0,
+            "Cost_Mandat": np.nan,
+        })
 
   return pd.DataFrame(rows).sort_values(by="Voturi", ascending=False)
 
 
 df = load_iasi_data()
 if df is None or df.empty:
-  st.error("Nu s-au găsit datele pentru județul Iași în fișierele CSV.")
+  st.error("Nu s-au găsit datele.")
   st.stop()
 
 total_voturi = int(df["Voturi"].sum())
@@ -188,7 +183,7 @@ cost_mediu_egal = round(total_voturi / 12)
 min_p = df_alesi.loc[df_alesi["Cost_Mandat"].idxmin()]
 max_p = df_alesi.loc[df_alesi["Cost_Mandat"].idxmax()]
 
-# --- HEADER EDITORIAL TIP DATADISTA ---
+# --- HEADER EDITORIAL ---
 st.markdown(
     '<div class="kicker">ALEGERI PARLAMENTARE 2024 • CIRCUMSCRIPȚIA 24 IAȘI</div>',
     unsafe_allow_html=True,
@@ -199,7 +194,7 @@ st.markdown(
 <div class="lead-text">
 În județul Iași s-au exprimat <b>{total_voturi:,} voturi valabile</b> pentru a alege <b>12 deputați</b>.
 Dacă fiecare mandat ar fi costat exact la fel, un fotoliu în Parlament ar fi valorat <b>{cost_mediu_egal:,} voturi</b>.
-În realitate, algoritmul de redistribuire a făcut ca un deputat <b>{min_p['Sigla']}</b> să coste
+În realitate, mecanismul electoral a făcut ca un mandat <b>{min_p['Sigla']}</b> să coste
 <span class="highlight-green">{int(min_p['Cost_Mandat']):,} voturi</span>, în timp ce un mandat <b>{max_p['Sigla']}</b>
 a costat <span class="highlight-red">{int(max_p['Cost_Mandat']):,} voturi</span>.
 </div>
@@ -207,7 +202,7 @@ a costat <span class="highlight-red">{int(max_p['Cost_Mandat']):,} voturi</span>
     unsafe_allow_html=True,
 )
 
-# --- CASETA DE REZUMAT EDITORIAL ---
+# --- CASETA DE REZUMAT ---
 st.markdown('<div class="datadista-box">', unsafe_allow_html=True)
 c1, c2, c3 = st.columns(3)
 with c1:
@@ -230,17 +225,15 @@ with c3:
   )
 st.markdown("</div>", unsafe_allow_html=True)
 
-# --- VIZUALIZAREA 1: LOLLIPOP / DOT PLOT COMPARATIV (STIL DATADISTA) ---
+# --- GRAFICUL 1: LOLLIPOP / DOT PLOT ---
 st.subheader("1. Diferența de preț între partide pentru un singur mandat")
 st.caption(
-    "Linia verticală punctată indică pragul teoretic de echitate (1/12 din voturile județului). Partidele din stânga au obținut mandate „mai ieftine” prin redistribuire."
+    "Linia verticală punctată indică pragul teoretic de echitate (1/12 din voturile județului)."
 )
 
 df_dot = df_alesi.sort_values(by="Cost_Mandat", ascending=True)
 
 fig_dot = go.Figure()
-
-# Linii orizontale de la 0 la punct (efect Lollipop)
 for _, row in df_dot.iterrows():
   fig_dot.add_trace(
       go.Scatter(
@@ -253,7 +246,6 @@ for _, row in df_dot.iterrows():
       )
   )
 
-# Punctele colorate ale partidelor
 fig_dot.add_trace(
     go.Scatter(
         x=df_dot["Cost_Mandat"],
@@ -272,7 +264,6 @@ fig_dot.add_trace(
     )
 )
 
-# Linia verticală a mediei teoretice
 fig_dot.add_vline(
     x=cost_mediu_egal,
     line_dash="dash",
@@ -304,13 +295,12 @@ fig_dot.update_layout(
 )
 st.plotly_chart(fig_dot, use_container_width=True, config={"displayModeBar": False})
 
-# --- VIZUALIZAREA 2: MATRICEA CELOR 12 MANDATE (UNIT CHART TIP DATADISTA) ---
+# --- VIZUALIZAREA 2: MATRICEA CELOR 12 MANDATE ---
 st.subheader("2. Cei 12 deputați de Iași și „greutatea” fiecărui fotoliu")
 st.caption(
-    "Fiecare coloană este unul dintre cei 12 deputați aleși în Iași. Fiecare pătrățel reprezintă 1.000 de voturi."
+    "Fiecare coloană este un deputat ales. Fiecare pătrățel reprezintă 1.000 de voturi."
 )
 
-# Construim datele pentru cei 12 deputați individuali
 mandate_list = []
 for _, row in df_alesi.iterrows():
   sigla = row["Sigla"]
@@ -330,7 +320,6 @@ df_12 = pd.DataFrame(mandate_list).sort_values(
 )
 
 fig_units = go.Figure()
-
 for idx, (_, m_row) in enumerate(df_12.iterrows()):
   n_dots = m_row["Blocuri_1000"]
   y_vals = list(range(1, n_dots + 1))
@@ -377,17 +366,12 @@ st.plotly_chart(
     fig_units, use_container_width=True, config={"displayModeBar": False}
 )
 
-# --- VIZUALIZAREA 3: VOTURILE FĂRĂ REPREZENTARE ---
+# --- VIZUALIZAREA 3: VOTURI FĂRĂ REPREZENTARE ---
 st.subheader("3. Voturile care nu au trimis niciun deputat în Parlament")
-st.markdown(
-    f"""
-În afara celor 6 partide care au împărțit cele 12 mandate, **alți {len(df_pierdute)} competitori** au strâns împreună
-**{voturi_fara_mandat:,} voturi** în județul Iași fără a obține vreun mandat local:
-"""
-)
-
-df_top_pierdute = df_pierdute.head(8).copy()
-df_top_pierdute["Procent"] = (df_top_pierdute["Voturi"] / total_voturi * 100).round(2)
+df_top_pierdute = df_pierdute.sort_values(by="Voturi", ascending=False).head(8)
+df_top_pierdute["Procent"] = (
+    df_top_pierdute["Voturi"] / total_voturi * 100
+).round(2)
 
 fig_lost = go.Figure(
     go.Bar(
@@ -397,7 +381,9 @@ fig_lost = go.Figure(
         marker_color="#ADB5BD",
         text=[
             f" {int(v):,} voturi ({p}%)"
-            for v, p in zip(df_top_pierdute["Voturi"], df_top_pierdute["Procent"])
+            for v, p in zip(
+                df_top_pierdute["Voturi"], df_top_pierdute["Procent"]
+            )
         ],
         textposition="outside",
         textfont=dict(color="#333333", size=12),
