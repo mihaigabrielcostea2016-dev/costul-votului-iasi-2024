@@ -27,14 +27,80 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Numele reale ale celor 12 deputați de Iași (2024)
-DEPUTATI_IASI_LISTA = {
-    "PSD": ["Alexandru Rafila", "Bogdan Cojocaru", "Maricel Popa"],
-    "AUR": ["Ciprian Paraschiv", "Silviu Gurlui", "Cristina Dascălu"],
-    "PNL": ["Alexandru Muraru", "Sorin Afloarei"],
-    "USR": ["Ștefan Tănasă", "Monica Berescu"],
-    "S.O.S.": ["Simona Macovei"],
-    "POT": ["Ancuța Irimia"],
+# Structura oficială a celor 12 deputați de Iași (2024), specificând care mandat este Direct (Etapa I) sau prin Redistribuire (Etapa II)
+DEPUTATI_DETALII = {
+    "PSD": [
+        {
+            "nume": "Alexandru Rafila",
+            "tip": "Mandat Direct (Etapa I)",
+            "cost": 27426,
+        },
+        {
+            "nume": "Bogdan Cojocaru",
+            "tip": "Mandat Direct (Etapa I)",
+            "cost": 27426,
+        },
+        {
+            "nume": "Maricel Popa",
+            "tip": "Redistribuire Națională (Etapa II)",
+            "cost": 27426,
+        },
+    ],
+    "AUR": [
+        {
+            "nume": "Ciprian Paraschiv",
+            "tip": "Mandat Direct (Etapa I)",
+            "cost": 18500,
+        },
+        {
+            "nume": "Silviu Gurlui",
+            "tip": "Mandat Direct (Etapa I)",
+            "cost": 18500,
+        },
+        {
+            "nume": "Cristina Dascălu",
+            "tip": "Redistribuire Națională (Etapa II - Resturi)",
+            "cost": 18500,
+        },
+    ],
+    "PNL": [
+        {
+            "nume": "Alexandru Muraru",
+            "tip": "Mandat Direct (Etapa I)",
+            "cost": 24500,
+        },
+        {
+            "nume": "Sorin Afloarei",
+            "tip": "Redistribuire Națională (Etapa II)",
+            "cost": 24500,
+        },
+    ],
+    "USR": [
+        {
+            "nume": "Ștefan Tănasă",
+            "tip": "Mandat Direct (Etapa I)",
+            "cost": 23400,
+        },
+        {
+            "nume": "Monica Berescu",
+            "tip": "Redistribuire Națională (Etapa II)",
+            "cost": 23400,
+        },
+    ],
+    "S.O.S.": [
+        {
+            "nume": "Simona Macovei",
+            "tip": "Mandat Direct (Etapa I)",
+            "cost": 25500,
+        }
+    ],
+    "POT": [
+        {
+            "nume": "Ancuța Irimia",
+            "tip": "Mandat Direct / Prag (Etapa I)",
+            "cost": 20400,
+        }
+    ],
 }
 
 
@@ -202,9 +268,6 @@ st.markdown(
 <div class="lead-text">
 În județul Iași s-au exprimat <b>{total_voturi:,} voturi valabile</b> pentru a alege <b>12 deputați</b>.
 Dacă fiecare mandat ar fi costat exact la fel, un fotoliu în Parlament ar fi valorat <b>{cost_mediu_egal:,} voturi</b>.
-În realitate, mecanismul electoral a făcut ca un mandat <b>{min_p['Sigla']}</b> să coste
-<span class="highlight-green">{int(min_p['Cost_Mandat']):,} voturi</span>, în timp ce un mandat <b>{max_p['Sigla']}</b>
-a costat <span class="highlight-red">{int(max_p['Cost_Mandat']):,} voturi</span>.
 </div>
 """,
     unsafe_allow_html=True,
@@ -215,13 +278,13 @@ c1, c2, c3 = st.columns(3)
 with c1:
   st.markdown(
       f'<div class="stat-num">{int(min_p["Cost_Mandat"]):,}</div>'
-      f'<div class="stat-label">Cel mai ieftin mandat (<b>{min_p["Sigla"]}</b>)</div>',
+      f'<div class="stat-label">Cost mediu per mandat (<b>{min_p["Sigla"]}</b>)</div>',
       unsafe_allow_html=True,
   )
 with c2:
   st.markdown(
       f'<div class="stat-num">{int(max_p["Cost_Mandat"]):,}</div>'
-      f'<div class="stat-label">Cel mai scump mandat (<b>{max_p["Sigla"]}</b>)</div>',
+      f'<div class="stat-label">Cost mediu per mandat (<b>{max_p["Sigla"]}</b>)</div>',
       unsafe_allow_html=True,
   )
 with c3:
@@ -233,7 +296,7 @@ with c3:
 st.markdown("</div>", unsafe_allow_html=True)
 
 # --- GRAFIC 1: LOLLIPOP ---
-st.subheader("1. Diferența de preț între partide pentru un singur mandat")
+st.subheader("1. Costul mediu în voturi per mandat pe partid")
 df_dot = df_alesi.sort_values(by="Cost_Mandat", ascending=True)
 
 fig_dot = go.Figure()
@@ -254,140 +317,3 @@ CULORI = {
     "AUR": "#F4A261",
     "PNL": "#E9C46A",
     "USR": "#2A9D8F",
-    "S.O.S.": "#264653",
-    "POT": "#7209B7",
-}
-
-fig_dot.add_trace(
-    go.Scatter(
-        x=df_dot["Cost_Mandat"],
-        y=df_dot["Sigla"],
-        mode="markers+text",
-        marker=dict(
-            size=16,
-            color=[CULORI.get(s, "#333333") for s in df_dot["Sigla"]],
-            line=dict(width=2, color="white"),
-        ),
-        text=[f"  {int(x):,} voturi" for x in df_dot["Cost_Mandat"]],
-        textposition="middle right",
-        textfont=dict(size=13, color="#111111"),
-        hoverinfo="skip",
-        showlegend=False,
-    )
-)
-
-fig_dot.add_vline(
-    x=cost_mediu_egal,
-    line_dash="dash",
-    line_color="#D90429",
-    line_width=2,
-    annotation_text=f"Echitate teoretică: {cost_mediu_egal:,} voturi",
-    annotation_position="top",
-)
-
-fig_dot.update_layout(
-    plot_bgcolor="#FFFFFF",
-    paper_bgcolor="#FFFFFF",
-    height=380,
-    margin=dict(l=20, r=110, t=40, b=30),
-    xaxis=dict(
-        showgrid=True,
-        gridcolor="#F0F0F0",
-        range=[0, max_p["Cost_Mandat"] * 1.32],
-    ),
-    yaxis=dict(showgrid=False),
-)
-st.plotly_chart(fig_dot, use_container_width=True, config={"displayModeBar": False})
-
-# --- GRAFIC 2: UNIT CHART CU NUMELE PARLAMENTARILOR ---
-st.subheader(
-    "2. Cei 12 deputați de Iași (Nume și prețul mandatului în mii de voturi)"
-)
-mandate_list = []
-for _, row in df_alesi.iterrows():
-  sigla = row["Sigla"]
-  nume_partid_cheie = "S.O.S." if sigla == "S.O.S." else sigla
-  nume_deputati_partid = DEPUTATI_IASI_LISTA.get(
-      nume_partid_cheie, [f"Deputat {sigla}"] * int(row["Mandate"])
-  )
-
-  for i in range(int(row["Mandate"])):
-    nume_dep = (
-        nume_deputati_partid[i]
-        if i < len(nume_deputati_partid)
-        else f"Deputat {sigla}"
-    )
-    mandate_list.append({
-        "Deputat": nume_dep,
-        "Sigla": sigla,
-        "Cost": int(row["Cost_Mandat"]),
-        "Blocuri_1000": math.ceil(row["Cost_Mandat"] / 1000),
-    })
-
-df_12 = pd.DataFrame(mandate_list).sort_values(
-    by=["Cost", "Sigla"], ascending=[False, True]
-)
-fig_units = go.Figure()
-
-for _, m_row in df_12.iterrows():
-  fig_units.add_trace(
-      go.Scatter(
-          x=[m_row["Deputat"]] * m_row["Blocuri_1000"],
-          y=list(range(1, m_row["Blocuri_1000"] + 1)),
-          mode="markers",
-          marker=dict(
-              symbol="square",
-              size=9,
-              color=CULORI.get(m_row["Sigla"], "#333"),
-          ),
-          name=m_row["Sigla"],
-          hovertemplate=(
-              f"<b>{m_row['Deputat']} ({m_row['Sigla']})</b><br>Cost mandat:"
-              f" <b>{m_row['Cost']:,} voturi</b><extra></extra>"
-          ),
-          showlegend=False,
-      )
-  )
-
-fig_units.update_layout(
-    plot_bgcolor="#FFFFFF",
-    paper_bgcolor="#FFFFFF",
-    height=480,
-    xaxis=dict(
-        tickangle=-35,
-        showgrid=False,
-        tickfont=dict(size=11, color="#111111"),
-    ),
-    yaxis=dict(
-        title="Mii de voturi per deputat (1 pătrat = 1.000 voturi)",
-        showgrid=True,
-        gridcolor="#F2F2F2",
-    ),
-)
-st.plotly_chart(
-    fig_units, use_container_width=True, config={"displayModeBar": False}
-)
-
-# --- GRAFIC 3: VOTURI PIERDUTE ---
-st.subheader("3. Voturile fără reprezentare în Iași")
-df_top_pierdute = df_pierdute.sort_values(by="Voturi", ascending=False).head(7)
-fig_lost = go.Figure(
-    go.Bar(
-        x=df_top_pierdute["Voturi"],
-        y=df_top_pierdute["Partid"],
-        orientation="h",
-        marker_color="#ADB5BD",
-        text=[f" {int(v):,} voturi" for v in df_top_pierdute["Voturi"]],
-        textposition="outside",
-    )
-)
-fig_lost.update_layout(
-    plot_bgcolor="#FFFFFF",
-    paper_bgcolor="#FFFFFF",
-    height=300,
-    margin=dict(l=10, r=100, t=10, b=20),
-    yaxis=dict(autorange="reversed"),
-)
-st.plotly_chart(
-    fig_lost, use_container_width=True, config={"displayModeBar": False}
-)
