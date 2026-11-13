@@ -27,6 +27,16 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Numele reale ale celor 12 deputați de Iași (2024)
+DEPUTATI_IASI_LISTA = {
+    "PSD": ["Alexandru Rafila", "Bogdan Cojocaru", "Maricel Popa"],
+    "AUR": ["Ciprian Paraschiv", "Silviu Gurlui", "Cristina Dascălu"],
+    "PNL": ["Alexandru Muraru", "Sorin Afloarei"],
+    "USR": ["Ștefan Tănasă", "Monica Berescu"],
+    "S.O.S.": ["Simona Macovei"],
+    "POT": ["Ancuța Irimia"],
+}
+
 
 def normalize_str(s):
   if not isinstance(s, str):
@@ -34,7 +44,6 @@ def normalize_str(s):
   return (
       s.upper()
       .strip()
-      .replace("Ş", "S")
       .replace("Ş", "S")
       .replace("Ţ", "T")
       .replace("Ț", "T")
@@ -85,7 +94,6 @@ def load_iasi_data():
 
   tot_voturi = raw[vote_cols].sum()
 
-  # Mapare flexibilă pe cuvinte cheie unice (fără probleme de diacritice)
   mandate_config = {
       "PSD": {"nume": "PARTIDUL SOCIAL DEMOCRAT", "mandate": 3, "sigla": "PSD"},
       "AUR": {
@@ -124,7 +132,7 @@ def load_iasi_data():
     if "SOCIAL DEMOCRAT" in nume_curat or "PSD" == nume_curat:
       rezultate_partide["PSD"]["v"] += v
       matched = True
-    elif "UNIREA ROMANILOR" in nume_curat or "AUR" in nume_curat:
+    elif "UNIREA ROMANILOR" in nume_curat or "AUR" == nume_curat:
       rezultate_partide["AUR"]["v"] += v
       matched = True
     elif "NATIONAL LIBERAL" in nume_curat or "PNL" == nume_curat:
@@ -241,7 +249,6 @@ for _, row in df_dot.iterrows():
       )
   )
 
-# Culori dedicate partidelor
 CULORI = {
     "PSD": "#E63946",
     "AUR": "#F4A261",
@@ -264,6 +271,7 @@ fig_dot.add_trace(
         text=[f"  {int(x):,} voturi" for x in df_dot["Cost_Mandat"]],
         textposition="middle right",
         textfont=dict(size=13, color="#111111"),
+        hoverinfo="skip",
         showlegend=False,
     )
 )
@@ -291,14 +299,27 @@ fig_dot.update_layout(
 )
 st.plotly_chart(fig_dot, use_container_width=True, config={"displayModeBar": False})
 
-# --- GRAFIC 2: UNIT CHART ---
-st.subheader("2. Cei 12 deputați de Iași")
+# --- GRAFIC 2: UNIT CHART CU NUMELE PARLAMENTARILOR ---
+st.subheader(
+    "2. Cei 12 deputați de Iași (Nume și prețul mandatului în mii de voturi)"
+)
 mandate_list = []
 for _, row in df_alesi.iterrows():
+  sigla = row["Sigla"]
+  nume_partid_cheie = "S.O.S." if sigla == "S.O.S." else sigla
+  nume_deputati_partid = DEPUTATI_IASI_LISTA.get(
+      nume_partid_cheie, [f"Deputat {sigla}"] * int(row["Mandate"])
+  )
+
   for i in range(int(row["Mandate"])):
+    nume_dep = (
+        nume_deputati_partid[i]
+        if i < len(nume_deputati_partid)
+        else f"Deputat {sigla}"
+    )
     mandate_list.append({
-        "Deputat": f"Deputat {row['Sigla']} #{i+1}",
-        "Sigla": row["Sigla"],
+        "Deputat": nume_dep,
+        "Sigla": sigla,
         "Cost": int(row["Cost_Mandat"]),
         "Blocuri_1000": math.ceil(row["Cost_Mandat"] / 1000),
     })
@@ -307,6 +328,7 @@ df_12 = pd.DataFrame(mandate_list).sort_values(
     by=["Cost", "Sigla"], ascending=[False, True]
 )
 fig_units = go.Figure()
+
 for _, m_row in df_12.iterrows():
   fig_units.add_trace(
       go.Scatter(
@@ -318,6 +340,11 @@ for _, m_row in df_12.iterrows():
               size=9,
               color=CULORI.get(m_row["Sigla"], "#333"),
           ),
+          name=m_row["Sigla"],
+          hovertemplate=(
+              f"<b>{m_row['Deputat']} ({m_row['Sigla']})</b><br>Cost mandat:"
+              f" <b>{m_row['Cost']:,} voturi</b><extra></extra>"
+          ),
           showlegend=False,
       )
   )
@@ -325,9 +352,17 @@ for _, m_row in df_12.iterrows():
 fig_units.update_layout(
     plot_bgcolor="#FFFFFF",
     paper_bgcolor="#FFFFFF",
-    height=450,
-    xaxis=dict(tickangle=-30, showgrid=False),
-    yaxis=dict(showgrid=True, gridcolor="#F2F2F2"),
+    height=480,
+    xaxis=dict(
+        tickangle=-35,
+        showgrid=False,
+        tickfont=dict(size=11, color="#111111"),
+    ),
+    yaxis=dict(
+        title="Mii de voturi per deputat (1 pătrat = 1.000 voturi)",
+        showgrid=True,
+        gridcolor="#F2F2F2",
+    ),
 )
 st.plotly_chart(
     fig_units, use_container_width=True, config={"displayModeBar": False}
